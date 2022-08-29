@@ -7,3 +7,6 @@ To configure the product follow this steps:
 With this configuration, whenever a procurement order is created and the supply
 rule selected is 'Buy' the application will create a Purchase Request instead
 of a Purchase Order.
+
+When delivery to purchase request is confirmed notification to partner is generated.
+Can be disabled in configuration settings.
