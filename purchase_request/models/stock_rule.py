@@ -1,7 +1,6 @@
 # Copyright 2018-2020 ForgeFlow, S.L.
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl-3.0)
 
-from datetime import datetime
 
 from odoo import api, fields, models
 
@@ -14,6 +13,7 @@ class StockRule(models.Model):
         procurement_uom_po_qty = procurement.product_uom._compute_quantity(
             procurement.product_qty, procurement.product_id.uom_po_id
         )
+        move_dest_ids = self._get_move_dest_id_from_procurement(procurement)
         return {
             "product_id": procurement.product_id.id,
             "name": procurement.product_id.name,
@@ -23,9 +23,7 @@ class StockRule(models.Model):
             "product_uom_id": procurement.product_id.uom_po_id.id,
             "product_qty": procurement_uom_po_qty,
             "request_id": request_id.id,
-            "move_dest_ids": [
-                (4, x.id) for x in procurement.values.get("move_dest_ids", [])
-            ],
+            "move_dest_ids": [(4, id_) for id_ in move_dest_ids],
             "orderpoint_id": procurement.values.get("orderpoint_id", False)
             and procurement.values.get("orderpoint_id").id,
         }
@@ -93,6 +91,12 @@ class StockRule(models.Model):
             return
         return super(StockRule, self)._run_buy(procurements)
 
+    def _get_move_dest_id_from_procurement(self, procurement):
+        moves = procurement.values.get("move_dest_ids")
+        if moves:
+            return [m.id for m in moves]
+        return []
+
     def create_purchase_request(self, procurement_group):
         """
         Create a purchase request containing procurement order product.
@@ -147,11 +151,19 @@ class StockRule(models.Model):
             ],
         )
         if same_product_date_request_line:
+            # Increment quantity on the existing move, and add the new dest
+            # move to move_dest_ids
+            dest_move_ids = self._get_move_dest_id_from_procurement(procurement)
             new_product_qty = (
                 same_product_date_request_line.product_qty
                 + request_line_data["product_qty"]
             )
-            same_product_date_request_line.write({"product_qty": new_product_qty})
+            same_product_date_request_line.write(
+                {
+                    "product_qty": new_product_qty,
+                    "move_dest_ids": [(4, id_) for id_ in dest_move_ids],
+                }
+            )
         else:
             # Create Line
             purchase_request_line_model.create(request_line_data)
