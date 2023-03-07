@@ -101,6 +101,7 @@ class StockRule(models.Model):
         """
         Create a purchase request containing procurement order product.
         """
+        # import pdb; pdb.set_trace()
         procurement = procurement_group[0]
         rule = procurement_group[1]
         purchase_request_model = self.env["purchase.request"]
@@ -139,7 +140,7 @@ class StockRule(models.Model):
         request_line_data = rule._prepare_purchase_request_line(pr, procurement)
         # check if request has lines for same product and data
         # if yes, update qty instead of creating new line
-        same_product_date_request_line = pr.line_ids.filtered_domain(
+        matching_lines = pr.line_ids.filtered_domain(
             [
                 ("product_id", "=", request_line_data["product_id"]),
                 ("date_required", "=", request_line_data["date_required"].date()),
@@ -150,15 +151,15 @@ class StockRule(models.Model):
                 ),  # avoid updating if there is RFQ or PO linked
             ],
         )
-        if same_product_date_request_line:
+        if matching_lines:
             # Increment quantity on the existing move, and add the new dest
             # move to move_dest_ids
             dest_move_ids = self._get_move_dest_id_from_procurement(procurement)
+            matching_line = fields.first(matching_lines)
             new_product_qty = (
-                same_product_date_request_line.product_qty
-                + request_line_data["product_qty"]
+                matching_line.product_qty + request_line_data["product_qty"]
             )
-            same_product_date_request_line.write(
+            matching_line.write(
                 {
                     "product_qty": new_product_qty,
                     "move_dest_ids": [(4, id_) for id_ in dest_move_ids],

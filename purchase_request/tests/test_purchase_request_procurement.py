@@ -75,6 +75,43 @@ class TestPurchaseRequestProcurement(common.SavepointCase):
         )
         return self.env["procurement.group"].run(procurements)
 
+    def test_two_matching_lines(self):
+        has_route = self.procurement_group_run(
+            "Test Purchase Request Procurement",
+            "Test Purchase Request Procurement",
+            self.product_1,
+            10,
+        )
+        self.assertTrue(has_route)
+        self.env["procurement.group"].run_scheduler()
+        pr = self.env["purchase.request"].search(
+            [("origin", "=", "Test Purchase Request Procurement")]
+        )
+        prl = pr.line_ids
+        # Manually create a new line
+        prl.copy(
+            {
+                "request_id": prl.request_id.id,
+                "product_id": prl.product_id.id,
+                "product_uom_id": prl.product_uom_id.id,
+                "product_qty": prl.product_qty,
+            }
+        )
+        self.assertEqual(sum(pr.line_ids.mapped("product_qty")), 20)
+        self.assertEqual(len(pr.line_ids), 2)
+        # 2nd request
+        has_route = self.procurement_group_run(
+            "Test Purchase Request Single Line",
+            "Test Purchase Request Single Line",
+            self.product_1,
+            5,
+        )
+        self.assertTrue(has_route)
+        self.env["procurement.group"].run_scheduler()
+        # Make sure qty has been increased by 5, and no new prl has been created
+        self.assertEqual(sum(pr.line_ids.mapped("product_qty")), 25)
+        self.assertEqual(len(pr.line_ids), 2)
+
     def test_procure_purchase_request(self):
         has_route = self.procurement_group_run(
             "Test Purchase Request Procurement",
