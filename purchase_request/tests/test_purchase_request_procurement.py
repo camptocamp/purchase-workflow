@@ -215,17 +215,12 @@ class TestPurchaseRequestProcurement(common.SavepointCase):
     def test_existing_purchase_request(self):
         with freeze_time("2020-07-03"):
             self.assertEqual(self.env["purchase.request"].search_count([]), 0)
-            has_route = self.procurement_group_run(
-                "Test Purchase Request Single Line",
-                "Test Purchase Request Single Line",
-                self.product_1,
-                4,
-            )
+            origin_1 = name_1 = "Test Purchase Request Single Line"
+            origin_2 = name_2 = "prod_1"
+            has_route = self.procurement_group_run(origin_1, name_1, self.product_1, 4)
             self.assertTrue(has_route)
             self.env["procurement.group"].run_scheduler()
-            pr = self.env["purchase.request"].search(
-                [("origin", "=", "Test Purchase Request Single Line")]
-            )
+            pr = self.env["purchase.request"].search([("origin", "=", origin_1)])
             self.assertTrue(pr.to_approve_allowed)
             self.assertEqual(pr.origin, "Test Purchase Request Single Line")
 
@@ -236,24 +231,20 @@ class TestPurchaseRequestProcurement(common.SavepointCase):
 
         with freeze_time("2020-07-04"):
             # another request
-            has_route = self.procurement_group_run(
-                "prod_1",
-                "prod_1",
-                self.product_1,
-                5,
-            )
+            has_route = self.procurement_group_run(name_2, origin_2, self.product_1, 5)
             self.assertTrue(has_route)
             self.env["procurement.group"].run_scheduler()
-            pr = self.env["purchase.request"].search([("origin", "=", "prod_1")])
-            self.assertTrue(pr.to_approve_allowed)
-            self.assertEqual(pr.origin, "prod_1")
 
-            prl = self.env["purchase.request.line"].search([("request_id", "=", pr.id)])
-
-            # make sure no new PR is created
-            self.assertEqual(self.env["purchase.request"].search_count([]), 2)
-            self.assertEqual(len(pr.line_ids), 1)
-            self.assertEqual(prl.product_qty, 5)
+        new_origin = f"{origin_1}, {origin_2}"
+        pr = self.env["purchase.request"].search([("origin", "=", new_origin)])
+        self.assertTrue(pr.to_approve_allowed)
+        lines = pr.line_ids
+        first_line = lines.filtered(lambda l: str(l.date_required) == "2020-07-03")
+        self.assertTrue(first_line)
+        self.assertEqual(first_line.product_qty, 4)
+        second_line = lines.filtered(lambda l: str(l.date_required) == "2020-07-04")
+        self.assertTrue(second_line)
+        self.assertEqual(second_line.product_qty, 5)
 
     def test_existing_purchase_request_with_rfq(self):
         self.assertEqual(self.env["purchase.request"].search_count([]), 0)
