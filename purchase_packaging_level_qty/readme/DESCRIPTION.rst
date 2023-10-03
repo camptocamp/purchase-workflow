@@ -1,0 +1,2 @@
+- Compute the total number of packaging quantity of a certain packaging level in a purchase order
+- The packaging level in which the sum will be shown is a configuration parameter (Eg. Pallet, harasse, etc.)
