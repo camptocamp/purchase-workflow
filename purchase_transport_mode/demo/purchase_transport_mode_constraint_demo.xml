@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="purchase_transport_mode_constraint_weight" model="purchase.transport.mode.constraint">
+        <field name="name">weight</field>
+        <field name="purchase_domain">[('total_weight', '&lt;', 23500)]</field>
+        <field name="purchase_transport_mode_id" ref="purchase_transport_mode_truck"/>
+    </record>
+    <record id="purchase_transport_mode_constraint_qty" model="purchase.transport.mode.constraint">
+        <field name="name">amount of pallets</field>
+        <field name="purchase_domain">[('total_transport_qty', '&lt;=', 33)]</field>
+        <field name="purchase_transport_mode_id" ref="purchase_transport_mode_truck"/>
+    </record>
+</odoo>
