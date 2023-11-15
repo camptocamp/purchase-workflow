@@ -28,13 +28,16 @@ class PurchaseOrder(models.Model):
         digits="Stock Weight",
     )
     total_volume = fields.Float(
-        compute="_compute_total_physical_properties", digits="Volume"
+        compute="_compute_total_physical_properties",
+        digits="Volume",
     )
     total_weight_uom_id = fields.Many2one(
-        "uom.uom", compute="_compute_total_physical_properties"
+        "uom.uom",
+        compute="_compute_total_physical_properties",
     )
     total_volume_uom_id = fields.Many2one(
-        "uom.uom", compute="_compute_total_physical_properties"
+        "uom.uom",
+        compute="_compute_total_physical_properties",
     )
     display_total_weight_in_report = fields.Boolean(
         "Display Weight in Report", default=True
@@ -42,6 +45,25 @@ class PurchaseOrder(models.Model):
     display_total_volume_in_report = fields.Boolean(
         "Display Volume in Report", default=True
     )
+
+    display_order_weight_in_po = fields.Boolean(
+        "Display Order Weight in PO",
+        compute="_compute_display_order",
+    )
+    display_order_volume_in_po = fields.Boolean(
+        "Display Order Volume in PO",
+        compute="_compute_display_order",
+    )
+
+    @api.depends("company_id")
+    def _compute_display_order(self):
+        for purchase in self:
+            self.display_order_weight_in_po = (
+                purchase.company_id.display_order_weight_in_po
+            )
+            self.display_order_volume_in_po = (
+                purchase.company_id.display_order_volume_in_po
+            )
 
     @api.depends("order_line.product_uom_qty", "order_line.product_id")
     def _compute_total_physical_properties(self):
