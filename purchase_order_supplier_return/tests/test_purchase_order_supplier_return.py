@@ -3,35 +3,38 @@
 
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.base.tests.common import DISABLED_MAIL_CONTEXT
+
 
 class TestPurchaseOrderSupplierReturn(TransactionCase):
-    def setUp(self):
-        super().setUp()
-
-        self.product = self.env["product.product"].create(
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env = cls.env["base"].with_context(**DISABLED_MAIL_CONTEXT).env
+        cls.product = cls.env["product.product"].create(
             {"name": "Product Test", "list_price": 5.0}
         )
-        self.partner = self.env["res.partner"].create(
+        cls.partner = cls.env["res.partner"].create(
             {
                 "name": "Partner",
             }
         )
-        self.purchase_order = self.env["purchase.order"].create(
+        cls.purchase_order = cls.env["purchase.order"].create(
             {
-                "partner_id": self.partner.id,
+                "partner_id": cls.partner.id,
             }
         )
-        self.purchase_order_line_1 = self.env["purchase.order.line"].create(
+        cls.purchase_order_line_1 = cls.env["purchase.order.line"].create(
             {
-                "order_id": self.purchase_order.id,
-                "product_id": self.product.id,
+                "order_id": cls.purchase_order.id,
+                "product_id": cls.product.id,
                 "product_qty": -1,
             }
         )
-        self.purchase_order_line_2 = self.env["purchase.order.line"].create(
+        cls.purchase_order_line_2 = cls.env["purchase.order.line"].create(
             {
-                "order_id": self.purchase_order.id,
-                "product_id": self.product.id,
+                "order_id": cls.purchase_order.id,
+                "product_id": cls.product.id,
                 "product_qty": 1,
             }
         )
@@ -40,20 +43,21 @@ class TestPurchaseOrderSupplierReturn(TransactionCase):
         """Test that the negative purchase_order_line is correctly received
         with the negative quantity when the related picking is validated."""
         self.purchase_order.button_confirm()
-        assert self.purchase_order_line_1.qty_received == 0
-        assert self.purchase_order_line_1.qty_received == 0
+        self.assertEqual(self.purchase_order.order_line[0].qty_received, 0)
 
         # Validate the pickings related to the purchase order
         for picking in self.purchase_order.picking_ids:
             picking.action_set_quantities_to_reservation()
             picking.button_validate()
+        # self.purchase_order.order_line._compute_qty_received()
+        self.assertTrue(
+            self.purchase_order.order_line[0].move_ids._is_purchase_return()
+        )
+        self.assertTrue(self.purchase_order.order_line[0].move_ids.to_refund)
+        self.assertEqual(self.purchase_order.order_line[0].qty_received, -1)
 
-        self.purchase_order.order_line._compute_qty_received()
-
-        assert self.purchase_order_line_1.move_ids._is_purchase_return() is True
-        assert self.purchase_order_line_1.move_ids.to_refund is True
-        assert self.purchase_order_line_1.qty_received == -1
-
-        assert self.purchase_order_line_2.move_ids._is_purchase_return() is False
-        assert self.purchase_order_line_2.move_ids.to_refund is False
-        assert self.purchase_order_line_2.qty_received == 1
+        self.assertFalse(
+            self.purchase_order.order_line[1].move_ids._is_purchase_return()
+        )
+        self.assertFalse(self.purchase_order.order_line[1].move_ids.to_refund)
+        self.assertEqual(self.purchase_order.order_line[1].qty_received, 1)
