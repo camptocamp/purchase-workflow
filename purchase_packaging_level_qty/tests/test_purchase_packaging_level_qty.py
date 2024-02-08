@@ -68,8 +68,10 @@ class TestPurchasePackagingLevel(common.TransactionCase):
                 "product_qty": 1,
             }
         )
+        self.assertEqual(self.purchase_order.total_transport_qty, 0.0)
         self.assertEqual(
-            self.purchase_order.total_transport_qty, "0.0 Packaging Level 1 Test"
+            self.purchase_order.transport_packaging_level_total_qty,
+            "0.0 Packaging Level 1 Test",
         )
 
         self.env["purchase.order.line"].create(
@@ -100,5 +102,11 @@ class TestPurchasePackagingLevel(common.TransactionCase):
         )
         self.assertEqual(self.purchase_order.order_line[3].transport_qty, 2)
         self.assertEqual(
-            self.purchase_order.total_transport_qty, "3.25 Packaging Level 1 Test"
+            self.purchase_order.total_transport_qty,
+            3.25,
+        )
+
+        self.assertEqual(
+            self.purchase_order.transport_packaging_level_total_qty,
+            "3.25 Packaging Level 1 Test",
         )
