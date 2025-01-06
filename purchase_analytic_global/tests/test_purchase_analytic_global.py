@@ -1,83 +1,97 @@
+# Copyright 2025 Camptocamp SA
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl)
-
+import json
 from datetime import date
 
-from odoo.tests.common import Form, TransactionCase
+from odoo.addons.base.tests.common import BaseCommon
 
 
-class TestPurchaseAnalyticGlobal(TransactionCase):
+class TestPurchaseAnalyticGlobal(BaseCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.purchase_order_model = cls.env["purchase.order"]
-        cls.partner_model = cls.env["res.partner"]
-        cls.analytic_account_model = cls.env["account.analytic.account"]
-        cls.partner1 = cls.partner_model.create({"name": "Partner1"})
-        cls.partner2 = cls.partner_model.create({"name": "Partner2"})
-        cls.analytic_account1 = cls.analytic_account_model.create(
-            {"name": "Analytic Account 1"}
-        )
-        cls.analytic_account2 = cls.analytic_account_model.create(
-            {"name": "Analytic Account 2"}
-        )
+        cls.PurchaseOrder = cls.env["purchase.order"]
+        cls.PurchaseOrderLine = cls.env["purchase.order.line"]
+        cls.Partner = cls.env["res.partner"]
+        cls.AnalyticAccount = cls.env["account.analytic.account"]
+        cls.analytic_plan = cls.env["account.analytic.plan"].create({"name": "Plan"})
         cls.product = cls.env.ref("product.product_product_4")
-        cls.purchase_order1 = cls.purchase_order_model.create(
+        cls.partner = cls.Partner.create({"name": "Test Partner"})
+        vals_list = [
+            {"name": "Analytic Account 1", "plan_id": cls.analytic_plan.id},
+            {"name": "Analytic Account 2", "plan_id": cls.analytic_plan.id},
+            {"name": "Analytic Account 3", "plan_id": cls.analytic_plan.id},
+        ]
+        cls.account1, cls.account2, cls.account3 = cls.AnalyticAccount.create(vals_list)
+        cls.purchase_order = cls.PurchaseOrder.create({"partner_id": cls.partner.id})
+        line_vals_list = [
             {
-                "partner_id": cls.partner1.id,
-                "account_analytic_id": cls.analytic_account1.id,
-                "order_line": [
-                    (
-                        0,
-                        0,
-                        {
-                            "product_id": cls.product.id,
-                            "name": cls.product.name,
-                            "product_qty": 10,
-                            "price_unit": 50,
-                            "product_uom": cls.product.uom_id.id,
-                            "date_planned": date.today(),
-                        },
-                    )
-                ],
+                "name": cls.product.name,
+                "product_id": cls.product.id,
+                "order_id": cls.purchase_order.id,
+                "product_qty": 10,
+                "price_unit": 50,
+                "product_uom": cls.product.uom_id.id,
+                "date_planned": date.today(),
             }
-        )
-        cls.purchase_order2 = cls.purchase_order_model.create(
-            {
-                "partner_id": cls.partner2.id,
-                "order_line": [
-                    (
-                        0,
-                        0,
-                        {
-                            "product_id": cls.product.id,
-                            "name": cls.product.name,
-                            "product_qty": 5,
-                            "price_unit": 40,
-                            "account_analytic_id": cls.analytic_account2.id,
-                            "product_uom": cls.product.uom_id.id,
-                            "date_planned": date.today(),
-                        },
-                    )
-                ],
-            }
-        )
+            for _ in range(3)
+        ]
+        cls.order_line = cls.PurchaseOrderLine.create(line_vals_list)
+        cls.line1, cls.line2, cls.line3 = cls.order_line
 
-    def test_purchase_order_check(self):
-        self.assertEqual(
-            self.purchase_order1.order_line[0].account_analytic_id,
-            self.analytic_account1,
+    def test_00_purchase_order_compute_distribution(self):
+        """Test the analytic distribution is computed correctly.
+
+        1. Check the analytic distribution is the same on order lines
+        and is set on the purchase order.
+        2. Check the analytic distribution is different on order lines
+        and is not set on the purchase order.
+        3. Check no distribution on order lines and on the purchase order.
+        """
+        self.assertFalse(
+            any(self.purchase_order.order_line.mapped("analytic_distribution")),
+            "No distribution",
         )
+        self.assertFalse(self.purchase_order.analytic_distribution, "No distribution")
+        self.order_line.analytic_distribution = {self.account1.id: 25}
+        dumps = json.dumps
         self.assertEqual(
-            self.purchase_order2.account_analytic_id, self.analytic_account2
+            dumps(self.purchase_order.analytic_distribution),
+            dumps({self.account1.id: 25.0}),
+            "Same distribution",
         )
-        purchase_form = Form(self.purchase_order2)
-        with purchase_form.order_line.new() as line_form:
-            line_form.product_id = self.product
-            line_form.name = self.product.name
-            line_form.product_qty = 10
-            line_form.price_unit = 20
-            line_form.account_analytic_id = self.analytic_account1
-            line_form.product_uom = self.product.uom_id
-            line_form.date_planned = date.today()
-        purchase_form.save()
-        self.assertFalse(self.purchase_order2.account_analytic_id)
+        self.line2.analytic_distribution = {self.account2.id: 50}
+        self.line3.analytic_distribution = False
+        self.assertFalse(
+            self.purchase_order.analytic_distribution, "Different distribution"
+        )
+        # Set the same distribution on the order lines
+        self.order_line.analytic_distribution = {self.account3.id: 55}
+        self.assertEqual(
+            dumps(self.purchase_order.analytic_distribution),
+            dumps({self.account3.id: 55.0}),
+            "Same distribution",
+        )
+        # Remove the distribution on the order lines
+        self.order_line.analytic_distribution = False
+        self.assertFalse(self.purchase_order.analytic_distribution, "No distribution")
+
+    def test_01_purchase_order_inverse_distribution(self):
+        """Test the analytic distribution is inversed correctly.
+
+        Check distribution set on the purchase order
+        is propagated to order lines.
+        """
+        self.assertFalse(
+            any(self.purchase_order.order_line.mapped("analytic_distribution")),
+            "No distribution",
+        )
+        self.purchase_order.analytic_distribution = {self.account1.id: 50}
+        self.assertTrue(
+            all(
+                json.dumps(line.analytic_distribution)
+                == json.dumps(self.purchase_order.analytic_distribution)
+                for line in self.purchase_order.order_line
+            ),
+            "Same distribution",
+        )
