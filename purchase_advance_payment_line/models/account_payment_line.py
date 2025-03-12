@@ -15,7 +15,6 @@ class AccountPaymentLine(models.Model):
     payment_mode_id = fields.Many2one(
         related="order_id.payment_mode_id",
         store=True,
-        readonly=True,
     )
 
     @api.onchange("move_line_id")
