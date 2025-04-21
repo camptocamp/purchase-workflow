@@ -8,16 +8,17 @@ from odoo.fields import first
 class PurchaseRequisitionLine(models.Model):
     _inherit = "purchase.requisition.line"
 
-    name = fields.Text(string="Description")
+    name = fields.Text(string="Product Description")
 
     @api.onchange("product_id")
     def _onchange_product_id(self):
-        res = super()._onchange_product_id()
+        """
+        New method is triggered when the `product_id` field is changed.
+        It updates the `name` field (description) based on the selected product
+        and the partner's language and purchase description.
+        """
         if self.product_id:
-            partner = (
-                self.requisition_id.purchase_ids.partner_id
-                or first(self.requisition_id.mapped("purchase_ids")).partner_id
-            )
+            partner = first(self.requisition_id.purchase_ids).partner_id
             product_lang = self.product_id.with_context(
                 lang=partner.lang,
                 partner_id=partner.id,
@@ -25,4 +26,3 @@ class PurchaseRequisitionLine(models.Model):
             self.name = product_lang.display_name
             if product_lang.description_purchase:
                 self.name += "\n" + product_lang.description_purchase
-        return res
