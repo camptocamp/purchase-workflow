@@ -1,0 +1,1 @@
+odoo-addon-stock_picking_line_sequence @ git+https://github.com/OCA/stock-logistics-workflow.git@refs/pull/2140/head#subdirectory=stock_picking_line_sequence
